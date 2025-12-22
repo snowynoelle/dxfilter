@@ -176,8 +176,7 @@ namespace dxfilter
                     if (shouldDeltaTime == true)
                     {
                         Vector2 vel = new Vector2(finalX, finalY);
-                        Vector2 temp = FinalVector;
-                        FinalVector = temp + vel * (float)dt.getDT();
+                        FinalVector = lastInput + vel * (float)dt.getDT();
                        
                     }
 

@@ -21,7 +21,7 @@ namespace dxfilter
             // yeah
             private Vector2[] buffer = new Vector2[1024];
 
-            [Property("Window Size"), DefaultPropertyValue(7), ToolTip("Number of samples used for smoothing.\n\nLarger values give smoother movement but add a small, fixed delay.\n\nRecommended: 7")]
+            [Property("Window Size"), DefaultPropertyValue(7), ToolTip("Default:7\nRange:3-1023\n\nNumber of samples used for smoothing.\n\nLarger values give smoother movement but add a small, fixed delay.")]
             public int WindowSize
             {
                 get => windowSize;
@@ -32,7 +32,7 @@ namespace dxfilter
                 }
             }
 
-            [Property("Polynomial Order"), DefaultPropertyValue(2), ToolTip("Controls how well sharp corners and curves are preserved.\n\nHigher values preserve detail but reduce smoothing.\n\nRecommended: 2")]
+            [Property("Polynomial Order"), DefaultPropertyValue(2), ToolTip("Default:2\nRange:1 - (WindowSize - 2)\n\nControls how well sharp corners and curves are preserved.\n\nHigher values preserve detail but reduce smoothing.")]
             public int PolyOrder
             {
                 get => polyOrder;
@@ -43,7 +43,7 @@ namespace dxfilter
                 }
             }
 
-            [Property("Derivative Order"), DefaultPropertyValue(0), ToolTip("Derivative order for Savitzky-Golay filter.\n\n0 = smooth position (most common)\n1 = smooth velocity (advanced)\n2 = smooth acceleration (rarely used)\n\n\"Must be ≤ Polynomial Order")]
+            [Property("Derivative Order"), DefaultPropertyValue(0), ToolTip("Default:0\nRange:1 - PolynomalOrder\n\nDerivative order for Savitzky-Golay filter.\n\n0 = smooth position (most common)\n1 = smooth velocity (advanced)\n2 = smooth acceleration (rarely used)")]
             public int DerivativeOrder
             {
                 get => derivativeOrder;
@@ -120,7 +120,7 @@ namespace dxfilter
             static double[] ComputeSGCoefficients(int window, int order, int derivative)
             {
                 var A = BuildVandermonde(window, order);
-                var AT = dxfilter.math.Transpose(A);
+                var AT = math.Transpose(A);
                 var ATA = dxfilter.math.Multiply(AT, A);
                 var ATAinv = dxfilter.math.Invert(ATA);
                 var G = dxfilter.math.Multiply(ATAinv, AT);
@@ -151,13 +151,14 @@ namespace dxfilter
         [PluginName("d/dx: Central Difference")]
         public class centralDiff : IPositionedPipelineElement<IDeviceReport>
         {
-            private Vector2[]? lastPositions = { };
+            private Vector2[]? lastPositions = Array.Empty<Vector2>();
+            private Vector2 lastPos = Vector2.Zero;
             private int amountPositions;
             private float amountSpacing;
             private bool shouldAvg;
             private bool shouldDt;
 
-            [Property("Reports"), DefaultPropertyValue(5), ToolTip("Default: 5\n\n" + "Number of reports to store to calculate derivative from.\n" + "To calculate how many ms it would smooth over, use (Reports - 1) / RPS.\n\n" + "Note that there will always be 1 report of latency.")]
+            [Property("Reports"), DefaultPropertyValue(5), ToolTip("Default: 5\nRange: 4-1024\n\n" + "Number of reports to store to calculate derivative from.\n" + "To calculate how many ms it would smooth over, use (Reports - 1) / RPS.\n\n" + "Note that there will always be 1 report of latency.")]
             public int amountElements
             {
                 // clamping to 1024 cuz why not
@@ -165,15 +166,15 @@ namespace dxfilter
                 get => amountPositions;
             }
 
-            [Property("Spacing between Derivatives"), DefaultPropertyValue(1f), ToolTip("Default: 1\n\n" + "Amount of spacing between reports to calculate derivative.\nA lower value usually tends to give more jitter to your inputs. ")]
+            [Property("Spacing between Derivatives"), DefaultPropertyValue(1f), ToolTip("Default: 1\nRange: 0.001-Reports/3\n\n" + "Amount of spacing between reports to calculate derivative.\nA lower value usually tends to give more jitter to your inputs. ")]
             public float spacingBD
             {
                 // clamping to 1024 cuz why not
-                set => amountSpacing = Math.Clamp(value, 0, amountPositions / 3);
+                set => amountSpacing = Math.Clamp((float)value, (float)0.001, amountPositions / 3);
                 get => amountSpacing;
             }
 
-            [Property("Should aAverage?"), DefaultPropertyValue(true), ToolTip("Should the Derivatives be averaged?")]
+            [Property("Should Average?"), DefaultPropertyValue(true), ToolTip("Should the Derivatives be averaged?")]
             public bool averagePref
             {
                 // clamping to 1024 cuz why not
@@ -198,14 +199,15 @@ namespace dxfilter
                 if (device is ITabletReport report)
                 {
                     lastPositions = lastPositions.Append(report.Position).ToArray();
-                    Vector2 point = dxfilter.math.DerivativeHandle(report.Position, lastPositions, amountPositions, amountSpacing, shouldAvg, dtPref);
+                    Vector2 point = math.DerivativeHandle(lastPos, lastPositions, amountPositions, amountSpacing, shouldAvg, dtPref);
                     
                     if (lastPositions.Length > amountPositions)
                     {
                         lastPositions = lastPositions.Skip(1).ToArray();
                     }
 
-                    report.Position = point;
+                    lastPos = report.Position;
+                    report.Position = lastPos;
                     device = report;
                 }
 
