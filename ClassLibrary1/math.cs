@@ -1,12 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace dxfilter
 {
-    static class matrix
+    static class math
     {
         public static double[,] Transpose(double[,] A)
         {
@@ -116,5 +117,73 @@ namespace dxfilter
             return result;
         }
 
+        public static float[] CentralDifference(float[] points, float spacing)
+        {
+            int n = points.Length;
+            if (n < 3) return new float[0];
+
+            float[] derivative = new float[n - 2];
+
+            for (int i = 1; i < n - 1; i++)
+            {
+                derivative[i - 1] = (points[i + 1] - points[i - 1]) / (2 * spacing);
+            }
+
+            return derivative;
+        }
+
+        public static Vector2 DerivativeHandle(Vector2 lastInput, Vector2[]? array, int amountElements, float amountSpacing, bool shouldAverage, bool shouldDeltaTime)
+        {
+            if (array == null)
+            {
+                return lastInput;
+            }
+            else
+            {
+                if (array.Length < amountElements)
+                {
+                    return lastInput;
+                }
+                else
+                {
+
+                    float[] yPos = { };
+                    float[] xPos = { };
+
+                    for (int i = 0; i < array.Length; i++)
+                    {
+                        yPos = yPos.Append(array[i].Y).ToArray();
+                        xPos = xPos.Append(array[i].X).ToArray();
+                    }
+
+                    float[] derivatedArrayX = CentralDifference(xPos, amountSpacing);
+                    float[] derivatedArrayY = CentralDifference(yPos, amountSpacing);
+                    float finalX;
+                    float finalY;
+
+                    if (shouldAverage == true)
+                    {
+                        finalX = derivatedArrayX.Average();
+                        finalY = derivatedArrayY.Average();
+                    } else
+                    {
+                        finalX = derivatedArrayX.Last();
+                        finalY = derivatedArrayY.Last();
+                    }
+                    
+                    Vector2 FinalVector = new Vector2(lastInput.X + finalX, lastInput.Y + finalY);
+
+                    if (shouldDeltaTime == true)
+                    {
+                        Vector2 vel = new Vector2(finalX, finalY);
+                        Vector2 temp = FinalVector;
+                        FinalVector = temp + vel * (float)dt.getDT();
+                       
+                    }
+
+                    return FinalVector;
+                }
+            }
+        }
     }
 }

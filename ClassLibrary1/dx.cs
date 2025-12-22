@@ -120,12 +120,12 @@ namespace dxfilter
             static double[] ComputeSGCoefficients(int window, int order, int derivative)
             {
                 var A = BuildVandermonde(window, order);
-                var AT = dxfilter.matrix.Transpose(A);
-                var ATA = dxfilter.matrix.Multiply(AT, A);
-                var ATAinv = dxfilter.matrix.Invert(ATA);
-                var G = dxfilter.matrix.Multiply(ATAinv, AT);
+                var AT = dxfilter.math.Transpose(A);
+                var ATA = dxfilter.math.Multiply(AT, A);
+                var ATAinv = dxfilter.math.Invert(ATA);
+                var G = dxfilter.math.Multiply(ATAinv, AT);
 
-                double factorial = dxfilter.matrix.Factorial(derivative);
+                double factorial = dxfilter.math.Factorial(derivative);
                 double[] coeff = new double[window];
 
                 for (int i = 0; i < window; i++)
@@ -148,12 +148,14 @@ namespace dxfilter
             }
         }
 
-        [PluginName("d/dx: Central Difference Average")]
+        [PluginName("d/dx: Central Difference")]
         public class centralDiffAvg : IPositionedPipelineElement<IDeviceReport>
         {
             private Vector2[]? lastPositions = { };
             private int amountPositions;
             private float amountSpacing;
+            private bool shouldAvg;
+            private bool shouldDt;
 
             [Property("Reports"), DefaultPropertyValue(5), ToolTip("Default: 5\n\n" + "Number of reports to store to calculate derivative from.\n" + "To calculate how many ms it would smooth over, use (Reports - 1) / RPS.\n\n" + "Note that there will always be 1 report of latency.")]
             public int amountElements
@@ -171,6 +173,22 @@ namespace dxfilter
                 get => amountSpacing;
             }
 
+            [Property("Should aAverage?"), DefaultPropertyValue(true), ToolTip("Should the Derivatives be averaged?")]
+            public bool averagePref
+            {
+                // clamping to 1024 cuz why not
+                set => shouldAvg = value;
+                get => shouldAvg;
+            }
+
+            [Property("Should apply deltaTime?"), DefaultPropertyValue(true), ToolTip("Should the output be smoothed with deltaTime?")]
+            public bool dtPref
+            {
+                // clamping to 1024 cuz why not
+                set => shouldDt = value;
+                get => shouldDt;
+            }
+
             public event Action<IDeviceReport>? Emit;
 
             public PipelinePosition Position => PipelinePosition.PreTransform;
@@ -179,9 +197,9 @@ namespace dxfilter
             {
                 if (device is ITabletReport report)
                 {
-                    Vector2 point = DerivativeFunc(report.Position, lastPositions, amountPositions, amountSpacing);
                     lastPositions = lastPositions.Append(report.Position).ToArray();
-
+                    Vector2 point = dxfilter.math.DerivativeHandle(report.Position, lastPositions, amountPositions, amountSpacing, shouldAvg, dtPref);
+                    
                     if (lastPositions.Length > amountPositions)
                     {
                         lastPositions = lastPositions.Skip(1).ToArray();
@@ -192,143 +210,6 @@ namespace dxfilter
                 }
 
                 Emit?.Invoke(device);
-            }
-
-            private static float[] CentralDifference(float[] points, float spacing)
-            {
-                int n = points.Length;
-                if (n < 3) return new float[0];
-
-                float[] derivative = new float[n - 2];
-
-                for (int i = 1; i < n - 1; i++)
-                {
-                    derivative[i - 1] = (points[i + 1] - points[i - 1]) / (2 * spacing);
-                }
-
-                return derivative;
-            }
-
-            private static Vector2 DerivativeFunc(Vector2 lastInput, Vector2[]? array, int amountElements, float amountSpacing)
-            {
-                if (array == null)
-                {
-                    return lastInput;
-                }
-                else
-                {
-                    if (array.Length < amountElements)
-                    {
-                        return lastInput;
-                    }
-                    else
-                    {
-
-                        float[] yPos = { };
-                        float[] xPos = { };
-
-                        for (int i = 0; i < array.Length; i++)
-                        {
-                            yPos = yPos.Append(array[i].Y).ToArray();
-                            xPos = xPos.Append(array[i].X).ToArray();
-                        }
-
-                        float[] derivatedArrayX = CentralDifference(xPos, amountSpacing);
-                        float[] derivatedArrayY = CentralDifference(yPos, amountSpacing);
-
-                        float finalX = derivatedArrayX.Average();
-                        float finalY = derivatedArrayY.Average();
-
-                        // i deadass dont know what im doing
-                        Vector2 FinalVector = new Vector2(lastInput.X + finalX, lastInput.Y + finalY);
-
-                        return FinalVector;
-                    }
-                }
-            }
-        }
-
-        [PluginName("d/dx: Central Difference")]
-        public class centralDiffInst : IPositionedPipelineElement<IDeviceReport>
-        {
-            private Vector2[]? lastPositions = { };
-            private int amountPositions = 3;
-            private float amountSpacing = 1;
-
-            public event Action<IDeviceReport>? Emit;
-
-            public PipelinePosition Position => PipelinePosition.PreTransform;
-
-            public void Consume(IDeviceReport device)
-            {
-                if (device is ITabletReport report)
-                {
-                    Vector2 point = DerivativeFunc(report.Position, lastPositions, amountPositions, amountSpacing);
-                    lastPositions = lastPositions.Append(report.Position).ToArray();
-
-                    if (lastPositions.Length > amountPositions)
-                    {
-                        lastPositions = lastPositions.Skip(1).ToArray();
-                    }
-
-                    report.Position = point;
-                    device = report;
-                }
-
-                Emit?.Invoke(device);
-            }
-
-            private static float[] CentralDifference(float[] points, float spacing)
-            {
-                int n = points.Length;
-                if (n < 3) return new float[0];
-
-                float[] derivative = new float[n - 2];
-
-                for (int i = 1; i < n - 1; i++)
-                {
-                    derivative[i - 1] = (points[i + 1] - points[i - 1]) / (2 * spacing);
-                }
-
-                return derivative;
-            }
-
-            private static Vector2 DerivativeFunc(Vector2 lastInput, Vector2[]? array, int amountElements, float amountSpacing)
-            {
-                if (array == null)
-                {
-                    return lastInput;
-                }
-                else
-                {
-                    if (array.Length < amountElements)
-                    {
-                        return lastInput;
-                    }
-                    else
-                    {
-
-                        float[] yPos = { };
-                        float[] xPos = { };
-
-                        for (int i = 0; i < array.Length; i++)
-                        {
-                            yPos = yPos.Append(array[i].Y).ToArray();
-                            xPos = xPos.Append(array[i].X).ToArray();
-                        }
-
-                        float[] derivatedArrayX = CentralDifference(xPos, amountSpacing);
-                        float[] derivatedArrayY = CentralDifference(yPos, amountSpacing);
-
-                        float finalX = derivatedArrayX.Last();
-                        float finalY = derivatedArrayY.Last();
-
-                        // i deadass dont know what im doing
-                        Vector2 FinalVector = new Vector2(lastInput.X + finalX, lastInput.Y + finalY);
-
-                        return FinalVector;
-                    }
-                }
             }
         }
     }
