@@ -1,5 +1,5 @@
 # dxfilter
-It's juct a collection of derivatives and or funky calculus functions as a OTD filter. Nothing special really.
+It's just a collection of derivatives and or funky calculus functions as a OTD filter. Nothing special really.
 
 ## Table of Contents
 - Installing
