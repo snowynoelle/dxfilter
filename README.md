@@ -11,13 +11,14 @@ It's juct a collection of derivatives and or funky calculus functions as a OTD f
 To install, grab the latest .dll in the releases tab. Go to your plugin manager and go to File -> Install Plugin. Select the .dll file you just downloaded, and boom! My shitty code should be installed now.
 
 ## Building
-Just use Visual Studio 2022.
+~~Just use Visual Studio 2022.~~<br>
+You can use either VS2022 or the build.sh file. net8.0 sdk is still required for both.
 
 ## Functions
 I'm gonna include actual LaTeX later, just know I got this so far:
 
 - [ ] Secant Slope
-- [x] Cental Difference
+- [x] Central Difference
 - [x] Savitzky-Golay filter
 - [ ] Whittaker-Henderson smoothing
 - [ ] Fast Fourier Transform
