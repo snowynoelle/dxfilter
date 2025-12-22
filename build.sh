@@ -1,0 +1,1 @@
+dotnet publish "dxfilter" -c Release -f net8.0 -o "Release"
