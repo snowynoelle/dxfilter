@@ -149,7 +149,7 @@ namespace dxfilter
         }
 
         [PluginName("d/dx: Central Difference")]
-        public class centralDiffAvg : IPositionedPipelineElement<IDeviceReport>
+        public class centralDiff : IPositionedPipelineElement<IDeviceReport>
         {
             private Vector2[]? lastPositions = { };
             private int amountPositions;
