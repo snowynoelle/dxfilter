@@ -132,7 +132,7 @@ namespace dxfilter
             return derivative;
         }
 
-        public static Vector2 DerivativeHandle(Vector2 lastInput, Vector2[]? array, int amountElements, float amountSpacing, bool shouldAverage, bool shouldDeltaTime)
+        public static Vector2 DerivativeHandle(Vector2 lastInput, Vector2[]? array, int amountElements, float amountSpacing, bool shouldAverage, bool shouldDeltaTime, bool shouldInverse)
         {
             if (array == null)
             {
@@ -171,18 +171,33 @@ namespace dxfilter
                         finalY = derivatedArrayY.Last();
                     }
                     
+                    if (shouldInverse == true)
+                    {
+                        finalX = 1 / finalX;
+                        finalY = 1 / finalY;
+                    }
+
                     Vector2 FinalVector = new Vector2(lastInput.X + finalX, lastInput.Y + finalY);
 
                     if (shouldDeltaTime == true)
                     {
                         Vector2 vel = new Vector2(finalX, finalY);
                         FinalVector = lastInput + vel * (float)dt.getDT();
-                       
                     }
 
                     return FinalVector;
                 }
             }
+        }
+    
+        public static Vector2 SecantSlope(Vector2 lastInput, Vector2 recentInput, int reportsDifference) 
+        {
+            Vector2 secantVector = (recentInput - lastInput) / reportsDifference;
+            Vector2 finalVector;
+
+            finalVector = new Vector2(lastInput.X + secantVector.X, lastInput.Y + secantVector.Y);
+
+            return finalVector;
         }
     }
 }

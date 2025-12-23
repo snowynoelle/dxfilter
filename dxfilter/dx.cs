@@ -9,6 +9,79 @@ namespace dxfilter
 {
     public class dx
     {
+        // broke
+        [PluginName("d/dx: Central Difference")]
+        public class centralDiff : IPositionedPipelineElement<IDeviceReport>
+        {
+            private Vector2[]? lastPositions = Array.Empty<Vector2>();
+            private Vector2 lastPos = Vector2.Zero;
+            private int amountPositions;
+            private float amountSpacing;
+            private bool shouldAvg;
+            private bool shouldDt;
+            private bool shouldInverse;
+
+            [Property("Reports"), DefaultPropertyValue(5), ToolTip("Default: 5\nRange: 4-1024\n\nNumber of reports to store to calculate derivative from.\nTo calculate how many ms it would smooth over, use (Reports - 1) / RPS.\n\nNote that there will always be 1 report of latency.")]
+            public int amountElements
+            {
+                // clamping to 1024 cuz why not
+                set => amountPositions = Math.Clamp(value, 4, 1024);
+                get => amountPositions;
+            }
+
+            [Property("Spacing between Derivatives"), DefaultPropertyValue(1f), ToolTip("Default: 1\nRange: 0.001-Reports/3\n\nAmount of spacing between reports to calculate derivative.\nA lower value usually tends to give more jitter to your inputs.")]
+            public float spacingBD
+            {
+                set => amountSpacing = Math.Clamp((float)value, (float)0.001, amountPositions / 3);
+                get => amountSpacing;
+            }
+
+            [Property("Should Average?"), DefaultPropertyValue(true), ToolTip("Should the Derivatives be averaged?")]
+            public bool average
+            {
+                set => shouldAvg = value;
+                get => shouldAvg;
+            }
+
+            [Property("Should apply deltaTime?"), DefaultPropertyValue(true), ToolTip("Should the output be smoothed with deltaTime?")]
+            public bool deltaTime
+            {
+                set => shouldDt = value;
+                get => shouldDt;
+            }
+
+            [Property("Should Inverse?"), DefaultPropertyValue(false), ToolTip("Should inverse derivative?")]
+            public bool inverse
+            {
+                set => shouldInverse = value;
+                get => shouldInverse;
+            }
+
+            public event Action<IDeviceReport>? Emit;
+
+            public PipelinePosition Position => PipelinePosition.PreTransform;
+
+            public void Consume(IDeviceReport device)
+            {
+                if (device is ITabletReport report)
+                {
+                    lastPositions = lastPositions.Append(report.Position).ToArray();
+                    Vector2 point = math.DerivativeHandle(lastPos, lastPositions, amountPositions, amountSpacing, shouldAvg, shouldDt, shouldInverse);
+
+                    if (lastPositions.Length > amountPositions)
+                    {
+                        lastPositions = lastPositions.Skip(1).ToArray();
+                    }
+
+                    lastPos = report.Position;
+                    report.Position = lastPos;
+                    device = report;
+                }
+
+                Emit?.Invoke(device);
+            }
+        }
+
         [PluginName("d/dx: Savitzky-Golay filter")]
         public class savitzkyGolayFilter : IPositionedPipelineElement<IDeviceReport>
         {
@@ -16,7 +89,6 @@ namespace dxfilter
             private int polyOrder;
             private int derivativeOrder;
             private double[] sgCoeff;
-
             // yeah
             private Vector2[] buffer = new Vector2[1024];
 
@@ -147,43 +219,19 @@ namespace dxfilter
             }
         }
 
-        [PluginName("d/dx: Central Difference")]
-        public class centralDiff : IPositionedPipelineElement<IDeviceReport>
+        [PluginName("d/dx: Secant Slope")]
+        public class secantSlope : IPositionedPipelineElement<IDeviceReport>
         {
-            private Vector2[]? lastPositions = Array.Empty<Vector2>();
             private Vector2 lastPos = Vector2.Zero;
-            private int amountPositions;
-            private float amountSpacing;
-            private bool shouldAvg;
-            private bool shouldDt;
+            private int reportsDifference;
+            private int currentReport;
 
-            [Property("Reports"), DefaultPropertyValue(5), ToolTip("Default: 5\nRange: 4-1024\n\nNumber of reports to store to calculate derivative from.\nTo calculate how many ms it would smooth over, use (Reports - 1) / RPS.\n\nNote that there will always be 1 report of latency.")]
-            public int amountElements
+            [Property("Reports"), DefaultPropertyValue(1), ToolTip("Default: 1\nRange: 1-2147483647\n\nHow many reports should be skipped until calculating the Secant slope?\n\nEffectively divides your RPS by that many reports. However, can resemble\na kind of smoothing/snappiness in lower report values.")]
+            public int amountReports
             {
                 // clamping to 1024 cuz why not
-                set => amountPositions = Math.Clamp(value, 4, 1024);
-                get => amountPositions;
-            }
-
-            [Property("Spacing between Derivatives"), DefaultPropertyValue(1f), ToolTip("Default: 1\nRange: 0.001-Reports/3\n\nAmount of spacing between reports to calculate derivative.\nA lower value usually tends to give more jitter to your inputs.")]
-            public float spacingBD
-            {
-                set => amountSpacing = Math.Clamp((float)value, (float)0.001, amountPositions / 3);
-                get => amountSpacing;
-            }
-
-            [Property("Should Average?"), DefaultPropertyValue(true), ToolTip("Should the Derivatives be averaged?")]
-            public bool averagePref
-            {
-                set => shouldAvg = value;
-                get => shouldAvg;
-            }
-
-            [Property("Should apply deltaTime?"), DefaultPropertyValue(true), ToolTip("Should the output be smoothed with deltaTime?")]
-            public bool dtPref
-            {
-                set => shouldDt = value;
-                get => shouldDt;
+                set => reportsDifference = Math.Clamp(value, 1, int.MaxValue);
+                get => reportsDifference;
             }
 
             public event Action<IDeviceReport>? Emit;
@@ -194,21 +242,29 @@ namespace dxfilter
             {
                 if (device is ITabletReport report)
                 {
-                    lastPositions = lastPositions.Append(report.Position).ToArray();
-                    Vector2 point = math.DerivativeHandle(lastPos, lastPositions, amountPositions, amountSpacing, shouldAvg, dtPref);
-                    
-                    if (lastPositions.Length > amountPositions)
+                    if (lastPos != null)
                     {
-                        lastPositions = lastPositions.Skip(1).ToArray();
+                        if (currentReport % reportsDifference == 0)
+                        {
+                            report.Position = math.SecantSlope(lastPos, report.Position, reportsDifference);
+                            lastPos = report.Position;
+                        } else
+                        {
+                            report.Position = lastPos;
+                        }
+
+                        currentReport++;
+                    } else
+                    {
+                        lastPos = report.Position;
                     }
 
-                    lastPos = report.Position;
-                    report.Position = lastPos;
                     device = report;
                 }
 
                 Emit?.Invoke(device);
             }
         }
+
     }
 }
