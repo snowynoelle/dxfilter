@@ -17,7 +17,7 @@ You can use either VS2022 or the build.sh file. net8.0 sdk is still required for
 ## Functions
 I'm gonna include actual LaTeX later, just know I got this so far:
 
-- [ ] Secant Slope
+- [x] Secant Slope
 - [x] Central Difference
 - [x] Savitzky-Golay filter
 - [ ] Whittaker-Henderson smoothing
