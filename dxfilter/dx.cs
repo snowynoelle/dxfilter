@@ -2,33 +2,31 @@
 using OpenTabletDriver.Plugin.Attributes;
 using OpenTabletDriver.Plugin.Output;
 using OpenTabletDriver.Plugin.Tablet;
-using OpenTabletDriver.Plugin;
-using System.Diagnostics;
 
 namespace dxfilter
 {
     public class dx
     {
-        // broke
+        // no longer broke
         [PluginName("d/dx: Central Difference")]
         public class centralDiff : IPositionedPipelineElement<IDeviceReport>
         {
-            private Vector2[]? lastPositions = Array.Empty<Vector2>();
-            private Vector2 lastPos = Vector2.Zero;
-            private int amountPositions;
+            private Vector2[]? lastPositions = { };
+            private Vector2 lastPos;
+            private int amountPositions = 5;
             private float amountSpacing;
             private bool shouldAvg;
             private bool shouldDt;
             private bool shouldInverse;
 
             [Property("Reports"), DefaultPropertyValue(5), ToolTip("Default: 5\nRange: 4-1024\n\nNumber of reports to store to calculate derivative from.\nTo calculate how many ms it would smooth over, use (Reports - 1) / RPS.\n\nNote that there will always be 1 report of latency.")]
-            public int amountElements
+            public int amountReports
             {
                 // clamping to 1024 cuz why not
                 set => amountPositions = Math.Clamp(value, 4, 1024);
                 get => amountPositions;
             }
-
+            
             [Property("Spacing between Derivatives"), DefaultPropertyValue(1f), ToolTip("Default: 1\nRange: 0.001-Reports/3\n\nAmount of spacing between reports to calculate derivative.\nA lower value usually tends to give more jitter to your inputs.")]
             public float spacingBD
             {
@@ -74,7 +72,7 @@ namespace dxfilter
                     }
 
                     lastPos = report.Position;
-                    report.Position = lastPos;
+                    report.Position = point;
                     device = report;
                 }
 
