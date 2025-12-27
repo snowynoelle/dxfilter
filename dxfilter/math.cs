@@ -120,13 +120,14 @@ namespace dxfilter
         public static float[] CentralDifference(float[] points, float spacing)
         {
             int n = points.Length;
-            if (n < 3) return new float[0];
 
-            float[] derivative = new float[n - 2];
+            if (spacing <= 0.40001) return new float[0];
+            if (n < 2 * (int)Math.Round(spacing) + 1) return new float[0];
 
-            for (int i = 1; i < n - 1; i++)
-            {
-                derivative[i - 1] = (points[i + 1] - points[i - 1]) / (2 * spacing);
+            float[] derivative = new float[n - 2 * (int)Math.Round(spacing)];
+
+            for (int i = (int)Math.Round(spacing); i < n - spacing; i++) {
+                derivative[i - (int)Math.Round(spacing)] = (points[i + (int)Math.Round(spacing)] - points[i - (int)Math.Round(spacing)]) / (2f * (int)Math.Round(spacing));
             }
 
             return derivative;
